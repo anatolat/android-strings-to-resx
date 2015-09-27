@@ -1,0 +1,11 @@
+﻿<#@ template language="C#" hostspecific="True"
+#><#@output extension=".log"
+#><#@include file="../T4/AndroidStringsConverter.ttinclude"
+#><#
+	var srcItems = new[] 
+	{
+		"android/strings.xml",
+	};
+
+	ConvertAndroidStrings(srcItems);
+#>

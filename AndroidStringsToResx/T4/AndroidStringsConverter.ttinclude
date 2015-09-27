@@ -1,0 +1,105 @@
+﻿<#@ assembly name="System.Core"
+#><#@ assembly name="System.Data.Linq"
+#><#@ assembly name="System.Xml"
+#><#@ assembly name="System.Xml.Linq"
+#><#@ assembly name="System.Windows.Forms"
+#><#@ assembly name="EnvDTE"
+#><#@ import namespace="System.IO"
+#><#@ import namespace="System.Linq"
+#><#@ import namespace="System.Xml.Linq"
+#><#@ import namespace="System.Collections.Generic"
+#><#@ import namespace="System.Resources"
+#><#@ import namespace="Microsoft.VisualStudio.TextTemplating"
+#><#+
+	void ConvertAndroidStrings(string[] srcItems, bool capitalize = true)
+	{
+		var generatedFiles = new List<string>();
+		var outputDir = Path.GetDirectoryName(Host.TemplateFile);
+		WriteLine("Output dir '{0}'", outputDir);
+
+		foreach (var src in srcItems)
+		{
+			var path = Host.ResolvePath(src);
+			WriteLine("Source path: '{0}'", path);
+
+			var destFileName = Path.GetFileNameWithoutExtension(path) + ".resx";
+			if (capitalize) 
+			{
+				destFileName = Capitalize(destFileName);
+			}
+
+			var destPath = Path.Combine(outputDir, destFileName);
+
+			WriteLine("Output path: '{0}'", destPath);
+
+			ConvertAndroidResource(path, destPath);
+			generatedFiles.Add(destPath);
+
+			WriteLine("OK");
+		}
+
+		ProjectSync(generatedFiles);
+	}
+
+	void ConvertAndroidResource(string src, string dest) 
+	{
+		using (var writer = new ResXResourceWriter(dest))
+		{
+			var root = XDocument.Load(src).Root;
+			foreach (var node in root.Elements("string"))
+			{
+				writer.AddResource((string)node.Attribute("name"), node.Value);
+			}
+
+			foreach (var node in root.Elements("string-array"))
+			{
+				var name = (string)node.Attribute("name");
+				var items = node.Elements("item").Select(x => x.Value).ToArray();
+				writer.AddResource(name, items);
+			}
+		}
+	}
+
+	static string Capitalize(string s) 
+	{
+		if (string.IsNullOrEmpty(s)) return s;
+
+		return char.ToUpper(s[0]) + s.Substring(1);
+	}
+
+	// https://github.com/damieng/DamienGKit
+
+	void ProjectSync(List<string> keepFileNames)
+	{
+		var hostServiceProvider = (IServiceProvider)Host;
+		if (hostServiceProvider == null)
+			throw new ArgumentNullException("Could not obtain IServiceProvider");
+
+		var dte = (EnvDTE.DTE) hostServiceProvider.GetService(typeof(EnvDTE.DTE));
+		if (dte == null)
+			throw new ArgumentNullException("Could not obtain DTE from host");
+
+		var templateProjectItem = dte.Solution.FindProjectItem(Host.TemplateFile);
+		ProjectSync(templateProjectItem, keepFileNames);
+	}
+
+	void ProjectSync(EnvDTE.ProjectItem templateProjectItem, List<string> keepFileNames) 
+	{
+		var keepFileNameSet = new HashSet<String>(keepFileNames);
+		var projectFiles = new Dictionary<String, EnvDTE.ProjectItem>();
+		var originalFilePrefix = Path.GetFileNameWithoutExtension(templateProjectItem.FileNames[0]) + ".";
+
+		foreach (EnvDTE.ProjectItem projectItem in templateProjectItem.ProjectItems)
+			projectFiles.Add(projectItem.FileNames[0], projectItem);
+
+		// Remove unused items from the project
+		foreach (var pair in projectFiles)
+			if (!keepFileNames.Contains(pair.Key) && !(Path.GetFileNameWithoutExtension(pair.Key) + ".").StartsWith(originalFilePrefix))
+				pair.Value.Delete();
+
+		// Add missing files to the project
+		foreach(var fileName in keepFileNameSet)
+			if (!projectFiles.ContainsKey(fileName))
+				templateProjectItem.ProjectItems.AddFromFile(fileName);
+	}
+#>
