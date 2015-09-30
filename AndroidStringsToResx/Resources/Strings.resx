@@ -121,7 +121,8 @@
     <value>Android Strings to ResX sample</value>
   </data>
   <data name="escaping_test" xml:space="preserve">
-    <value>test \'s \\ok\nnewline</value>
+    <value>test 's \ok
+newline</value>
   </data>
   <data name="array_test" mimetype="application/x-microsoft.net.object.binary.base64">
     <value>

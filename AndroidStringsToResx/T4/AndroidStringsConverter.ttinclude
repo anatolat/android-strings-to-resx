@@ -8,6 +8,7 @@
 #><#@ import namespace="System.Linq"
 #><#@ import namespace="System.Xml.Linq"
 #><#@ import namespace="System.Collections.Generic"
+#><#@ import namespace="System.Text"
 #><#@ import namespace="System.Resources"
 #><#@ import namespace="Microsoft.VisualStudio.TextTemplating"
 #><#+
@@ -48,13 +49,13 @@
 			var root = XDocument.Load(src).Root;
 			foreach (var node in root.Elements("string"))
 			{
-				writer.AddResource((string)node.Attribute("name"), node.Value);
+				writer.AddResource((string)node.Attribute("name"), Unescape(node.Value));
 			}
 
 			foreach (var node in root.Elements("string-array"))
 			{
 				var name = (string)node.Attribute("name");
-				var items = node.Elements("item").Select(x => x.Value).ToArray();
+				var items = node.Elements("item").Select(x => Unescape(x.Value)).ToArray();
 				writer.AddResource(name, items);
 			}
 		}
@@ -65,6 +66,56 @@
 		if (string.IsNullOrEmpty(s)) return s;
 
 		return char.ToUpper(s[0]) + s.Substring(1);
+	}
+
+	private static string Unescape(string s)
+	{
+		int begin = 0;
+		int end = s.Length;
+
+		while (begin < end)
+		{
+			if (s[begin] == '"') ++begin;
+			else if (s[end - 1] == '"') --end;
+			else break;
+		}
+
+		var sb = new StringBuilder();
+
+		int offs = begin;
+		for (int i = 1; i < end; ++i)
+		{
+			if (s[i - 1] != '\\') continue;
+
+			if (offs < i - 1)
+			{
+				sb.Append(s.Substring(offs, i - 1 - offs));
+			}
+
+			switch (s[i])
+			{
+				case 'n':
+					sb.Append('\n');
+					break;
+
+				case 't':
+					sb.Append('\t');
+					break;
+
+				default:
+					sb.Append(s[i]);
+					break;
+			}
+
+			offs = i + 1;
+		}
+
+		if (offs < end)
+		{
+			sb.Append(s.Substring(offs, end - offs));
+		}
+
+		return sb.ToString();
 	}
 
 	// https://github.com/damieng/DamienGKit
